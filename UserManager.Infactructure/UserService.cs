@@ -1,5 +1,8 @@
 ﻿using Azure.Core;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -7,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,12 +26,23 @@ namespace UserManager.Infactructure
         private readonly SignInManager<ApplicationUser> signInManager;
         private readonly IConfiguration configuration;
         private readonly RoleManager<IdentityRole> roleManager;
-        public UserService(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration)
+        private readonly TokenValidationParameters tokenValidationParameters;
+        
+       
+        public UserService(
+            UserManager<ApplicationUser> userManager, 
+            SignInManager<ApplicationUser> signInManager, 
+            RoleManager<IdentityRole> roleManager, 
+            IConfiguration configuration, 
+            TokenValidationParameters tokenValidationParameters
+           )
         {
             this.userManager = userManager;
             this.signInManager = signInManager;
             this.configuration = configuration;
             this.roleManager = roleManager;
+            this.tokenValidationParameters = tokenValidationParameters;
+            
         }
 
         public async Task<string> CreateRole(string name)
@@ -57,23 +72,23 @@ namespace UserManager.Infactructure
             return users;
         }
 
-        public async Task<string> AddUserToRole(ApplicationUser user , string roleName) {
+        public async Task<string> AddUserToRole(ApplicationUser user, string roleName ) {
             var result = await userManager.AddToRoleAsync(user, roleName);
             return (result.Succeeded) 
                 ? $"Success, User has been added to the role" 
                 : "User has been added for longtime";   
         }
 
-        public async Task<IdentityResult> RegisterAsync(Register model)
+        public async Task<IdentityResult> RegisterAsync(ApplicationUser user,Register model)
         {
-            var user = new ApplicationUser
-            {
-                Email = model.Email,
-                UserName = model.Email
-            };
+            
+            
             var result = await userManager.CreateAsync(user, model.Password);
             if (result.Succeeded)
             {
+                
+                
+                
                 return await userManager.AddToRoleAsync(user, "User");
             }
             else
@@ -100,25 +115,19 @@ namespace UserManager.Infactructure
 
             var authClaims = new List<Claim>(claims);
 
-            var authenKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]));
-            var authenKeyRefresh = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:SecretRefresh"]));
-            var token = new JwtSecurityToken(
-                issuer: configuration["JWT:ValidIssuer"],
-                audience: configuration["JWT:ValidAudience"],
-                expires: DateTime.Now.AddDays(1),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authenKey, SecurityAlgorithms.HmacSha512Signature)
-            );
+            var token = SignInAccessToken(authClaims);
+            var refreshToken = SignInRefreshToken(authClaims);
+           
 
-            var refreshToken = new JwtSecurityToken(
-               issuer: configuration["JWT:ValidIssuer"],
-               audience: configuration["JWT:ValidAudience"],
-               expires: DateTime.Now.AddDays(7),
-               claims: authClaims,
-               signingCredentials: new SigningCredentials(authenKeyRefresh, SecurityAlgorithms.HmacSha512Signature)
-           );
             var accessToken =  new JwtSecurityTokenHandler().WriteToken(token);
             var newRefreshToken = new JwtSecurityTokenHandler().WriteToken(refreshToken);
+            _ = int.TryParse(configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
+
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(refreshTokenValidityInDays);
+
+            await userManager.UpdateAsync(user);
+
             var authResponse = new AuthResult()
             {
                 AccessToken = accessToken,
@@ -137,11 +146,116 @@ namespace UserManager.Infactructure
             return await userManager.RemoveFromRoleAsync(user, roleName);
         }
 
-        //public async Task<AuthResult> RefreshToken()
-        //{
+        public async Task<AuthResult> RefreshToken(string refreshToken)
+        {
+            var principal = GetPrincipalFromExpiredToken(refreshToken);
+            if (principal == null)
+            {
+                return new AuthResult()
+                {
+                    AccessToken = "",
+                    RefreshToken = "",
+                    Error = "Invalid access token or refresh token"
+                };
+            }
+            
+            string username = principal.Identity.Name;
+            var user = await userManager.FindByNameAsync(username);
 
-        //}
+            if (user == null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.Now)
+            {
+                return new AuthResult()
+                {
+                    AccessToken = "",
+                    RefreshToken = "",
+                    Error = "Invalid access token or refresh token"
+                };
+            }
 
+            var newAccessToken = SignInAccessToken(principal.Claims.ToList());
+            var newRefreshToken = SignInRefreshToken(principal.Claims.ToList());
+
+            var writeNewAccessToken = new JwtSecurityTokenHandler().WriteToken(newAccessToken);
+            var writeNewRefreshToken = new JwtSecurityTokenHandler().WriteToken(newRefreshToken);
+            _ = int.TryParse(configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
+
+            user.RefreshToken = writeNewRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(refreshTokenValidityInDays);
+
+            await userManager.UpdateAsync(user);
+
+            var authResponse = new AuthResult()
+            {
+                AccessToken = writeNewAccessToken,
+                RefreshToken = writeNewRefreshToken,
+                Error = null
+            };
+            return authResponse;
+        }
+        public async Task<IdentityResult> ConfirmEmail(string email, string token)
+        {
+            var user = await userManager.FindByEmailAsync(email);
+            return await userManager.ConfirmEmailAsync(user, token);
+        }
+
+   
+    //
+
+    private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
+        {
+
+            tokenValidationParameters.ValidateAudience = false;
+            tokenValidationParameters.ValidateIssuer = false;
+            tokenValidationParameters.ValidateIssuerSigningKey = true;
+            tokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:SecretRefresh"]));
+            tokenValidationParameters.ValidateLifetime = false;
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters
+                , out SecurityToken securityToken);
+            if (securityToken is not JwtSecurityToken jwtSecurityToken
+                || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha512Signature, StringComparison.InvariantCultureIgnoreCase))
+            {
+                throw new SecurityTokenException("Invalid token");
+            }
+            return principal;
+
+        }
+        public async Task<LogoutResult> Logout(string accessToken,string refreshToken)
+        {
+            //await signInManager.SignOutAsync();
+            var principal = GetPrincipalFromExpiredToken(refreshToken);
+            if (principal == null)
+            {
+                return new LogoutResult()
+                {
+                    Message = "",
+                    Error = "Invalid access token or refresh token"
+                };
+            }
+            string username = principal.Identity.Name;
+            var user = await userManager.FindByNameAsync(username);
+            if (user == null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.Now)
+            {
+                return new LogoutResult()
+                {
+                    Message = "",
+                    Error = "Invalid access token or refresh token"
+                };
+            }
+            await signInManager.SignOutAsync();
+            await userManager.UpdateSecurityStampAsync(user);
+            await userManager.RemoveAuthenticationTokenAsync(user, "JWT", accessToken);
+
+            user.RefreshToken = "";
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(0);
+
+            await userManager.UpdateAsync(user);
+            return new LogoutResult()
+            {
+                Message = "Logout !!!!!",
+                Error = "",
+            };
+        }
         //helper
         public async Task<ApplicationUser> FindUserByEmailAsync(string email)
         {
@@ -153,12 +267,14 @@ namespace UserManager.Infactructure
             return await roleManager.RoleExistsAsync(roleName);
         }
 
-       private async Task<List<Claim>> GetAllValidClaims(ApplicationUser user)
+        private async Task<List<Claim>> GetAllValidClaims(ApplicationUser user)
         {
             var _options = new IdentityOptions();
 
             var claims = new List<Claim> {
                 new Claim(JwtRegisteredClaimNames.Email,user.Email),
+                new Claim(JwtRegisteredClaimNames.Sub,user.Email),
+                new Claim(ClaimTypes.Name,user.UserName),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
             // get the claim assigned
@@ -185,5 +301,32 @@ namespace UserManager.Infactructure
 
             return claims;
         }
+        private JwtSecurityToken SignInAccessToken(List<Claim> authClaims)
+        {
+            var authenKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]));
+            var accessToken = new JwtSecurityToken(
+                issuer: configuration["JWT:ValidIssuer"],
+                audience: configuration["JWT:ValidAudience"],
+                expires: DateTime.Now.AddDays(1),
+                claims: authClaims,
+                signingCredentials: new SigningCredentials(authenKey, SecurityAlgorithms.HmacSha512Signature)
+            );
+            return accessToken;
+        }
+
+        private JwtSecurityToken SignInRefreshToken(List<Claim> authClaims)
+        {
+            var authenKeyRefresh = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:SecretRefresh"]));
+            var refreshToken = new JwtSecurityToken(
+              issuer: configuration["JWT:ValidIssuer"],
+              audience: configuration["JWT:ValidAudience"],
+              expires: DateTime.Now.AddDays(7),
+              claims: authClaims,
+              signingCredentials: new SigningCredentials(authenKeyRefresh, SecurityAlgorithms.HmacSha512Signature)
+          );
+            return refreshToken;
+        }
+       
+    
     }
 }

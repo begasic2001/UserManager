@@ -1,8 +1,13 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
+using NETCore.MailKit.Core;
 using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
+using UserManager.Domain.Entities;
 
 namespace UserManager.Api.Controllers
 {
@@ -11,23 +16,48 @@ namespace UserManager.Api.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
-
-        public UserController(IUserService userService)
+        private readonly IEmailServices _emailService;
+        private readonly UserManager<ApplicationUser> _userManager;
+        public UserController(IUserService userService , IEmailServices emailService, UserManager<ApplicationUser> userManager)
         {
             _userService = userService;
+            _emailService = emailService;
+            _userManager = userManager;
         }
         [HttpPost("SignUp")]
         public async Task<IActionResult> SignUp(Register model)
         {
             try
             {
-                var result = await _userService.RegisterAsync(model);
-                if(result.Succeeded)
+                var user = new ApplicationUser
                 {
-                    
-                    return Ok(result);
+                    Email = model.Email,
+                    UserName = model.Email
+                };
+                var result = await _userService.RegisterAsync(user,model);
+                if (result.Succeeded)
+                {
+                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    var confirmEmailUrl = Url.Action(nameof(ConfirmMail), "User", new { token, user.Email }, Request.Scheme);
+                    var message = new Message(
+                        new string[] { user.Email! }, "Confirm email link", confirmEmailUrl);
+                    _emailService.SendEmail(message);
+                    return StatusCode(StatusCodes.Status200OK,
+                        new { 
+                            Status = "Success", 
+                            Message =$"User has been created & email sent to {user.Email} successfully"
+                        });
                 }
-                return Conflict(result);
+                else
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError,
+                        new
+                        {
+                            Status = "Error",
+                            Message = "This role doesn't exists"
+                        });
+                }
+            
             }
             catch (Exception ex)
             {
@@ -51,7 +81,25 @@ namespace UserManager.Api.Controllers
             }
 
         }
+        [HttpPost("Refresh-Token")]
+        public async Task<IActionResult> RefreshToken(ModelToken model)
+        {
+            try
+            {
+                if(model.RefreshToken is null)
+                {
+                    return BadRequest($"Invalid client request {model.RefreshToken}");
+                }
+                var result = await _userService.RefreshToken(model.RefreshToken);
+                return Ok(result);
 
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(ex.Message);
+            }
+        }
         [HttpPost("Role")]
         public async Task<IActionResult> CreateRole(string name)
         {
@@ -194,6 +242,44 @@ namespace UserManager.Api.Controllers
                 return BadRequest(ex.Message);
             }
 
+        }
+
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "User")]
+        [HttpPost("Logout")]
+        public async Task<IActionResult> Logout(ModelToken model)
+        {
+            if (model.RefreshToken is null)
+            {
+                return BadRequest($"Invalid client request {model.RefreshToken}");
+            }
+            else
+            {
+                var accessToken = HttpContext.Request.Headers["Authorization"].ToString().Split()[1];
+                var result = await _userService.Logout(accessToken, model.RefreshToken);
+                return Ok(result);
+            }
+            
+        }
+
+        [HttpGet("ConfirmMail")]
+        public  async Task<IActionResult> ConfirmMail(string email, string token)
+        {
+            try
+            {
+                var result = await _userService.ConfirmEmail(email, token);
+                if(result.Succeeded)
+                {
+                    
+                    return Ok(result);  
+                }
+                return BadRequest(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"{ex.Message}");
+                
+            }
+            
         }
     }
 }

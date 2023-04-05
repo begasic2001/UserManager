@@ -1,3 +1,6 @@
+using Autofac.Core;
+using Microsoft.Extensions.Configuration;
+using UserManager.Application.Models;
 using UserManager.Infactructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +14,7 @@ builder.Services.AddSwaggerGen();
 builder.Host.AddHostBuild();
 
 builder.Services.AddServiceCollection(builder.Configuration);
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
