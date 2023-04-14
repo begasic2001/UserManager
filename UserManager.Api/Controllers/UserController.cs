@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using NETCore.MailKit.Core;
+using System.ComponentModel.DataAnnotations;
 using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
 using UserManager.Domain.Entities;
@@ -37,6 +38,7 @@ namespace UserManager.Api.Controllers
                 var result = await _userService.RegisterAsync(user,model);
                 if (result.Succeeded)
                 {
+                   
                     var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                     var confirmEmailUrl = Url.Action(nameof(ConfirmMail), "User", new { token, user.Email }, Request.Scheme);
                     var message = new Message(
@@ -71,8 +73,9 @@ namespace UserManager.Api.Controllers
         {
             try
             {
-                var result = await _userService.SignInAsync(model);
                 
+                var result = await _userService.SignInAsync(model);
+            
                 return Ok(result);
             }
             catch (Exception ex)
@@ -81,6 +84,19 @@ namespace UserManager.Api.Controllers
             }
 
         }
+        //[HttpPost("SignIn-2FA")]
+        //public async Task<IActionResult> SignIn_2FA()
+        //{
+            //if (user.TwoFactorEnabled)
+            //{
+            //    return StatusCode(StatusCodes.Status200OK,
+            //    new
+            //    {
+            //        Status = "Success",
+            //        Message = $"We have sent an OTP {user.Email} "
+            //    });
+            //}
+        //}
         [HttpPost("Refresh-Token")]
         public async Task<IActionResult> RefreshToken(ModelToken model)
         {
@@ -280,6 +296,79 @@ namespace UserManager.Api.Controllers
                 
             }
             
+        }
+
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([Required] string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user != null)
+            {
+
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var forgotPassworkLink = Url.Action(nameof(GetResetPassword), "User", new { token, user.Email }, Request.Scheme);
+                var message = new Message(new string[] { user.Email! }, "Forgot password link", forgotPassworkLink);
+                _emailService.SendEmail(message);
+                return StatusCode(StatusCodes.Status200OK,
+                       new
+                       {
+                           Status = "Success",
+                           Message = $"Password changed request is send on email {user.Email}, Please open your email & click the link"
+
+                       });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                       new
+                       {
+                           Status = "Error",
+                           Message = "Couldn't send link to email, please try again"
+                       });
+        }
+
+
+        [HttpGet("reset-password")]
+        
+        public async Task<IActionResult> GetResetPassword(string token,string email)
+        {
+            var model = new ResetPassword {
+                Token = token,
+                Email = email
+            };
+
+            return Ok(new { model });
+        }
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword(ResetPassword resetPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(resetPassword.Email);
+            if (user != null)
+            {
+                var resetPassResult = await _userManager.ResetPasswordAsync(user, resetPassword.Token, resetPassword.Password);
+                if (!resetPassResult.Succeeded)
+                {
+                    foreach (var error in resetPassResult.Errors)
+                    {
+                        ModelState.AddModelError(error.Code, error.Description);
+                    }
+                    return Ok(ModelState);
+                }
+                return StatusCode(StatusCodes.Status200OK,
+                       new
+                       {
+                           Status = "Success",
+                           Message = $"Password has been changed "
+
+                       });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                       new
+                       {
+                           Status = "Error",
+                           Message = "Couldn't send link to email, please try again"
+                       });
         }
     }
 }

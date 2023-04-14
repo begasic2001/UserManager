@@ -3,7 +3,7 @@ using MimeKit;
 using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
 
-namespace UserManager.Infactructure
+namespace UserManager.Infactructure.Email
 {
     public class EmailServices : IEmailServices
     {

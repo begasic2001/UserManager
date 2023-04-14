@@ -86,9 +86,8 @@ namespace UserManager.Infactructure
             var result = await userManager.CreateAsync(user, model.Password);
             if (result.Succeeded)
             {
-                
-                
-                
+                // send otp when login
+                //user.TwoFactorEnabled = true;
                 return await userManager.AddToRoleAsync(user, "User");
             }
             else
@@ -114,11 +113,17 @@ namespace UserManager.Infactructure
             var claims = await GetAllValidClaims(user);
 
             var authClaims = new List<Claim>(claims);
+            // check 2fa
+            //if (user.TwoFactorEnabled)
+            //{
+            //    var tokenForF2a = await userManager.GenerateTwoFactorTokenAsync(user, "Email");
+            //    var message = new Message(new string[] { user.Email },"OTP Confirmation", tokenForF2a);
+                
+            //}
 
             var token = SignInAccessToken(authClaims);
             var refreshToken = SignInRefreshToken(authClaims);
            
-
             var accessToken =  new JwtSecurityTokenHandler().WriteToken(token);
             var newRefreshToken = new JwtSecurityTokenHandler().WriteToken(refreshToken);
             _ = int.TryParse(configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
@@ -201,7 +206,7 @@ namespace UserManager.Infactructure
    
     //
 
-    private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
+        private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
         {
 
             tokenValidationParameters.ValidateAudience = false;

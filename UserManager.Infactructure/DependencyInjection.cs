@@ -15,7 +15,7 @@ using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
 using UserManager.Domain.Entities;
 using UserManager.Infactructure.Data;
-
+using UserManager.Infactructure.Email;
 
 namespace UserManager.Infactructure
 {
@@ -49,7 +49,8 @@ namespace UserManager.Infactructure
                     .AddEntityFrameworkStores<UserManagerContext>().AddDefaultTokenProviders();
             // add config email service set up
             services.Configure<IdentityOptions>(options => options.SignIn.RequireConfirmedEmail = true);
-            
+            // set up time life mail can confirm
+            services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromMinutes(5));
             services.AddDbContext<UserManagerContext>(option =>
             {
                 option.UseSqlServer(configuration.GetConnectionString("DefaultString"), b => b.MigrationsAssembly("UserManager.Api"));
