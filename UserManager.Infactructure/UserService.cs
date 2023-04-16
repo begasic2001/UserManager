@@ -277,6 +277,7 @@ namespace UserManager.Infactructure
             var _options = new IdentityOptions();
 
             var claims = new List<Claim> {
+                new Claim(JwtRegisteredClaimNames.NameId,user.Id),
                 new Claim(JwtRegisteredClaimNames.Email,user.Email),
                 new Claim(JwtRegisteredClaimNames.Sub,user.Email),
                 new Claim(ClaimTypes.Name,user.UserName),
