@@ -88,7 +88,8 @@ namespace UserManager.Infactructure
             {
                 // send otp when login
                 //user.TwoFactorEnabled = true;
-                return await userManager.AddToRoleAsync(user, "User");
+                var res = await userManager.AddToRoleAsync(user, "User");
+                return res;
             }
             else
             {
@@ -227,7 +228,6 @@ namespace UserManager.Infactructure
         }
         public async Task<LogoutResult> Logout(string accessToken,string refreshToken)
         {
-            //await signInManager.SignOutAsync();
             var principal = GetPrincipalFromExpiredToken(refreshToken);
             if (principal == null)
             {
@@ -255,11 +255,12 @@ namespace UserManager.Infactructure
             user.RefreshTokenExpiryTime = DateTime.Now.AddDays(0);
 
             await userManager.UpdateAsync(user);
-            return new LogoutResult()
+            return  new LogoutResult()
             {
                 Message = "Logout !!!!!",
                 Error = "",
             };
+            
         }
         //helper
         public async Task<ApplicationUser> FindUserByEmailAsync(string email)
