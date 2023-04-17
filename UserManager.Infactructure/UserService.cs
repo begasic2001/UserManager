@@ -265,7 +265,8 @@ namespace UserManager.Infactructure
         //helper
         public async Task<ApplicationUser> FindUserByEmailAsync(string email)
         {
-            return await userManager.FindByEmailAsync(email);
+            var result = await userManager.FindByEmailAsync(email);
+            return result;
         }
 
         public async Task<bool> FindRoleExistAsync(string roleName)
