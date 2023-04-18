@@ -370,5 +370,20 @@ namespace UserManager.Api.Controllers
                            Message = "Couldn't send link to email, please try again"
                        });
         }
+
+        [HttpGet("GetUserByEmail")]
+        public async Task<IActionResult> GetUserByEmail(string email)
+        {
+            try
+            {  
+                var result = await _userService.FindUserByEmailAsync(email);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(ex.Message);
+            }
+        }
     }
 }
