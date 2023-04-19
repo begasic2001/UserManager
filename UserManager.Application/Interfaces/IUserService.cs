@@ -25,5 +25,6 @@ namespace UserManager.Application.Interfaces
         Task<AuthResult> RefreshToken(string refreshToken);
         Task<LogoutResult> Logout(string accessToken,string refreshToken);
         Task<IdentityResult> ConfirmEmail(string email, string token);
+        Task<AuthResult> SignInOtpEmail(string code, string email);
     }
 }

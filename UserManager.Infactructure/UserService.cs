@@ -27,14 +27,15 @@ namespace UserManager.Infactructure
         private readonly IConfiguration configuration;
         private readonly RoleManager<IdentityRole> roleManager;
         private readonly TokenValidationParameters tokenValidationParameters;
-        
-       
+        private readonly IEmailServices _emailService;
+
         public UserService(
             UserManager<ApplicationUser> userManager, 
             SignInManager<ApplicationUser> signInManager, 
             RoleManager<IdentityRole> roleManager, 
             IConfiguration configuration, 
-            TokenValidationParameters tokenValidationParameters
+            TokenValidationParameters tokenValidationParameters,
+            IEmailServices emailService
            )
         {
             this.userManager = userManager;
@@ -42,7 +43,7 @@ namespace UserManager.Infactructure
             this.configuration = configuration;
             this.roleManager = roleManager;
             this.tokenValidationParameters = tokenValidationParameters;
-            
+            _emailService = emailService;
         }
 
         public async Task<string> CreateRole(string name)
@@ -99,33 +100,90 @@ namespace UserManager.Infactructure
 
         public async Task<AuthResult> SignInAsync(SignIn model)
         {
+            var user = await userManager.FindByEmailAsync(model.Email);
+            // check 2fa
+            if (user.TwoFactorEnabled)
+            {
+                Console.WriteLine("vào case này");
+                await signInManager.SignOutAsync();
+                await signInManager.PasswordSignInAsync(model.Email, model.Password, false, true);
+                var tokenForF2a = await userManager.GenerateTwoFactorTokenAsync(user, "Email");
+                var message = new Message(new string[] { user.Email }, "OTP Confirmation", tokenForF2a);
+                _emailService.SendEmail(message);
+                return new AuthResult()
+                {
+                    Message = $"We have sent an OTP to your {model.Email}"
+                };
+            }
+
             var result = await signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
             if (!result.Succeeded)
             {
                 return new AuthResult()
                 {
-                    AccessToken = "",
-                    RefreshToken = "",
                     Error = result.ToString()
-                }; 
+                };
             }
-            var user = await userManager.FindByEmailAsync(model.Email);
+
+            //get all claim in method helper
+            var claims = await GetAllValidClaims(user);
+
+            var authClaims = new List<Claim>(claims);
+
+
+            var token = SignInAccessToken(authClaims);
+            var refreshToken = SignInRefreshToken(authClaims);
+
+            var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+            var newRefreshToken = new JwtSecurityTokenHandler().WriteToken(refreshToken);
+            _ = int.TryParse(configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
+
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(refreshTokenValidityInDays);
+
+            await userManager.UpdateAsync(user);
+
+            var authResponse = new AuthResult()
+            {
+                AccessToken = accessToken,
+                RefreshToken = newRefreshToken,
+                Error = null
+            };
+            return authResponse;
+        }
+
+        public async Task<AuthResult> SignInOtpEmail(string code, string email)
+        {
+
+            var user = await userManager.FindByEmailAsync(email);
+            var signIn = await signInManager.TwoFactorSignInAsync("Email", code, false, false);
+            if (!signIn.Succeeded)
+            {
+                return new AuthResult()
+                {
+                    Message = "Invalid code!!"
+                };
+            }
+
+            //var result = await signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
+            //if (!result.Succeeded)
+            //{
+            //    return new AuthResult()
+            //    {
+            //        Error = result.ToString()
+            //    };
+            //}
+
             // get all claim in method helper
             var claims = await GetAllValidClaims(user);
 
             var authClaims = new List<Claim>(claims);
-            // check 2fa
-            //if (user.TwoFactorEnabled)
-            //{
-            //    var tokenForF2a = await userManager.GenerateTwoFactorTokenAsync(user, "Email");
-            //    var message = new Message(new string[] { user.Email },"OTP Confirmation", tokenForF2a);
-                
-            //}
+
 
             var token = SignInAccessToken(authClaims);
             var refreshToken = SignInRefreshToken(authClaims);
-           
-            var accessToken =  new JwtSecurityTokenHandler().WriteToken(token);
+
+            var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
             var newRefreshToken = new JwtSecurityTokenHandler().WriteToken(refreshToken);
             _ = int.TryParse(configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
 

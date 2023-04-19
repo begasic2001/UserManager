@@ -385,5 +385,20 @@ namespace UserManager.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        [HttpPost("LoginWith2FA")]
+        public async Task<IActionResult> LoginWith2FA(string code, string email)
+        {
+            try
+            {
+                var result = await _userService.SignInOtpEmail(code, email);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+                throw;
+            }
+        }
     }
 }
