@@ -104,7 +104,6 @@ namespace UserManager.Infactructure
             // check 2fa
             if (user.TwoFactorEnabled)
             {
-                Console.WriteLine("vào case này");
                 await signInManager.SignOutAsync();
                 await signInManager.PasswordSignInAsync(model.Email, model.Password, false, true);
                 var tokenForF2a = await userManager.GenerateTwoFactorTokenAsync(user, "Email");
@@ -147,7 +146,7 @@ namespace UserManager.Infactructure
             {
                 AccessToken = accessToken,
                 RefreshToken = newRefreshToken,
-                Error = null
+               
             };
             return authResponse;
         }

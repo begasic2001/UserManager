@@ -1,0 +1,35 @@
+﻿@page
+@{
+    Layout = null;
+    ViewData["Title"] = "About";
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>@ViewData["Title"] - Tự học ICT</title>
+    <style>
+        .header {
+            color: cadetblue;
+        }
+        .footer {
+            text-align: center;
+            font-size: small;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="header">Razor Pages tutorial</h1>
+    <hr />
+    <h2>@SayHello("Covid")</h2>
+    <p>It's @DateTime.Now.ToLongDateString()</p>
+    <p>ASP.NET Core Razor Pages is a page-focused framework for building dynamic, data-driven web sites with clean separation of concerns. Based on the latest version of ASP.NET from Microsoft - ASP.NET Core, Razor Pages supports cross platform development and can be deployed to Windows, Unix and Mac operating systems.</p>
+    <hr />
+    <h2 class="footer">©tuhocict.com - @DateTime.Now.Year</h2>
+</body>
+</html>
+@{
+    string SayHello(string name) {
+        return $"Hello, {name}. Welcome to Razor Pages!";
+    }
+}

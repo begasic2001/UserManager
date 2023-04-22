@@ -397,7 +397,6 @@ namespace UserManager.Api.Controllers
             catch (Exception ex)
             {
                 return BadRequest(ex.Message);
-                throw;
             }
         }
     }

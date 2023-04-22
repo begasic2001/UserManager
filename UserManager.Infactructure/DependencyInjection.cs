@@ -40,6 +40,7 @@ namespace UserManager.Infactructure
 
         public static IServiceCollection AddServiceCollection(this IServiceCollection services, Microsoft.Extensions.Configuration.ConfigurationManager configuration)
         {
+           
             services.AddCors(options => options.AddDefaultPolicy(policy =>
                     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod())
             );
@@ -79,9 +80,18 @@ namespace UserManager.Infactructure
                 options.TokenValidationParameters = tokenValidationParameters;
             });
 
+            // add authentication with google api
+            services.AddAuthentication().AddGoogle(googleOptions =>
+            {
+                var googleAuthNSection = configuration.GetSection("Authentication:Google");
+                googleOptions.ClientId = googleAuthNSection["ClientId"];
+                googleOptions.ClientSecret = googleAuthNSection["ClientSecret"];
+            });
+
             // Add Email Config
             var emailConfig = configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>();
             services.AddSingleton(emailConfig);
+            services.AddRazorPages();
             return services;
         }
     }
