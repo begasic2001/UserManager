@@ -416,24 +416,31 @@ namespace UserManager.Api.Controllers
         }
 
         [AllowAnonymous]
+        [HttpGet("GoogleResponse")]
         public async Task<IActionResult> GoogleResponse()
         {
             ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+            
+
+
             if (info == null)
             {
-                return RedirectToAction(nameof(SignIn));
-
+                //return RedirectToAction(nameof(SignIn));
+                return BadRequest("No Response");
             }
 
             var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
-            await Console.Out.WriteLineAsync("result:::::" + info.Principal);
+            
             string[] userInfo = { 
-                info.Principal.FindFirst(ClaimTypes.Name).Value, 
-                info.Principal.FindFirst(ClaimTypes.Email).Value,
-                 //info.Principal.FindFirst(ClaimTypes.Sid).Value
+                info.Principal.FindFirst(ClaimTypes.Name)!.Value, 
+                info.Principal.FindFirst(ClaimTypes.Email)!.Value,
+               
             };
             if (result.Succeeded)
-                return View("GoogleResponse",userInfo);
+            {
+                return Ok(userInfo);
+            }
+                //return View("GoogleResponse",userInfo);
             else
             {
                 var user = new ApplicationUser
@@ -441,7 +448,11 @@ namespace UserManager.Api.Controllers
                     Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
                     UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
                 };
-
+                if (info.Principal.HasClaim(c => c.Type == "picture"))
+                {
+                    await _userManager.AddClaimAsync(user, info.Principal.FindFirst("picture"));
+                }
+                
                 IdentityResult identResult = await _userManager.CreateAsync(user);
                 if (identResult.Succeeded)
                 {
@@ -449,10 +460,12 @@ namespace UserManager.Api.Controllers
                     if (identResult.Succeeded)
                     {
                         await signInManager.SignInAsync(user, false);
-                        return View(userInfo);
+                        //Console.WriteLine("Picture:::::::::::::" + info.Principal.FindFirst("picture")!.Value);
+                        //return View(userInfo);
+                        return Ok(userInfo);
                     }
                 }
-                return BadRequest("Access Denied");
+                return NoContent();
             }
         }
 

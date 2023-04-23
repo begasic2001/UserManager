@@ -88,7 +88,7 @@ namespace UserManager.Infactructure
             if (result.Succeeded)
             {
                 // send otp when login
-                //user.TwoFactorEnabled = true;
+                user.TwoFactorEnabled = true;
                 var res = await userManager.AddToRoleAsync(user, "User");
                 return res;
             }

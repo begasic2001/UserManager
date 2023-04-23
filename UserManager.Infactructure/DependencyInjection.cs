@@ -98,6 +98,7 @@ namespace UserManager.Infactructure
                 googleOptions.SignInScheme = IdentityConstants.ExternalScheme;
                 googleOptions.ClaimActions.MapJsonKey("urn:google:picture", "picture", "url");
             });
+            // add authentication with fakebook api
 
             // Add Email Config
             var emailConfig = configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>();
