@@ -2,12 +2,16 @@
 using Autofac;
 using Autofac.Core;
 using Autofac.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -81,17 +85,24 @@ namespace UserManager.Infactructure
             });
 
             // add authentication with google api
-            services.AddAuthentication().AddGoogle(googleOptions =>
+            services.AddAuthentication(options =>
             {
-                var googleAuthNSection = configuration.GetSection("Authentication:Google");
-                googleOptions.ClientId = googleAuthNSection["ClientId"];
-                googleOptions.ClientSecret = googleAuthNSection["ClientSecret"];
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+            })
+            .AddCookie()
+            .AddGoogle(googleOptions =>
+            {
+                googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
+                googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
+                googleOptions.SignInScheme = IdentityConstants.ExternalScheme;
+                googleOptions.ClaimActions.MapJsonKey("urn:google:picture", "picture", "url");
             });
 
             // Add Email Config
             var emailConfig = configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>();
             services.AddSingleton(emailConfig);
-            services.AddRazorPages();
+            
             return services;
         }
     }

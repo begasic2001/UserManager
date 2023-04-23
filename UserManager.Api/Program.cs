@@ -6,8 +6,9 @@ using UserManager.Infactructure;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
+builder.Services.AddRazorPages();
 builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 //builder.Services.AddEndpointsApiExplorer();
 //builder.Services.AddSwaggerGen();
@@ -25,13 +26,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseCookiePolicy();
+app.UseRouting();   
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapRazorPages();
-});
 app.MapControllers();
-
+app.MapRazorPages();
 
 app.Run();

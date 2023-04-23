@@ -1,11 +1,13 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Routing;
-using NETCore.MailKit.Core;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
 using UserManager.Domain.Entities;
@@ -14,16 +16,18 @@ namespace UserManager.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UserController : ControllerBase
+    public class UserController : Controller
     {
         private readonly IUserService _userService;
         private readonly IEmailServices _emailService;
         private readonly UserManager<ApplicationUser> _userManager;
-        public UserController(IUserService userService , IEmailServices emailService, UserManager<ApplicationUser> userManager)
+        private readonly SignInManager<ApplicationUser> signInManager;
+        public UserController(IUserService userService , IEmailServices emailService, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
         {
             _userService = userService;
             _emailService = emailService;
             _userManager = userManager;
+            this.signInManager = signInManager;
         }
         [HttpPost("SignUp")]
         public async Task<IActionResult> SignUp(Register model)
@@ -399,5 +403,59 @@ namespace UserManager.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        // google
+
+        [AllowAnonymous]
+        [HttpGet("LoginWithGoogle")]
+        public IActionResult GoogleLogin()
+        {
+            string redirectUrl = Url.Action("GoogleResponse", "User");
+            var properties = signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
+            return new ChallengeResult("Google", properties);
+        }
+
+        [AllowAnonymous]
+        public async Task<IActionResult> GoogleResponse()
+        {
+            ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+            if (info == null)
+            {
+                return RedirectToAction(nameof(SignIn));
+
+            }
+
+            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
+            await Console.Out.WriteLineAsync("result:::::" + info.Principal);
+            string[] userInfo = { 
+                info.Principal.FindFirst(ClaimTypes.Name).Value, 
+                info.Principal.FindFirst(ClaimTypes.Email).Value,
+                 //info.Principal.FindFirst(ClaimTypes.Sid).Value
+            };
+            if (result.Succeeded)
+                return View("GoogleResponse",userInfo);
+            else
+            {
+                var user = new ApplicationUser
+                {
+                    Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
+                    UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
+                };
+
+                IdentityResult identResult = await _userManager.CreateAsync(user);
+                if (identResult.Succeeded)
+                {
+                    identResult = await _userManager.AddLoginAsync(user, info);
+                    if (identResult.Succeeded)
+                    {
+                        await signInManager.SignInAsync(user, false);
+                        return View(userInfo);
+                    }
+                }
+                return BadRequest("Access Denied");
+            }
+        }
+
+
     }
 }
