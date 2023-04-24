@@ -97,8 +97,14 @@ namespace UserManager.Infactructure
                 googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
                 googleOptions.SignInScheme = IdentityConstants.ExternalScheme;
                 googleOptions.ClaimActions.MapJsonKey("urn:google:picture", "picture", "url");
-            });
-            // add authentication with fakebook api
+            })
+             .AddFacebook(facebookOptions => {
+                 facebookOptions.AppId = configuration["Authentication:Facebook:AppId"];
+                 facebookOptions.AppSecret = configuration["Authentication:Facebook:AppSecret"];
+                 // Thiết lập đường dẫn Facebook chuyển hướng đến
+                 facebookOptions.CallbackPath = "/signin-facebook";
+             });
+            // add authentication with fakebook api and google 
 
             // Add Email Config
             var emailConfig = configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>();
