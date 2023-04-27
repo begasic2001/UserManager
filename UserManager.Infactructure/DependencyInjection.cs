@@ -4,6 +4,7 @@ using Autofac.Core;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Facebook;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -90,7 +91,9 @@ namespace UserManager.Infactructure
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
             })
-            .AddCookie()
+            .AddCookie(
+                
+            )
             .AddGoogle(googleOptions =>
             {
                 googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
@@ -101,8 +104,7 @@ namespace UserManager.Infactructure
              .AddFacebook(facebookOptions => {
                  facebookOptions.AppId = configuration["Authentication:Facebook:AppId"];
                  facebookOptions.AppSecret = configuration["Authentication:Facebook:AppSecret"];
-                 // Thiết lập đường dẫn Facebook chuyển hướng đến
-                 facebookOptions.CallbackPath = "/signin-facebook";
+                 facebookOptions.SignInScheme = IdentityConstants.ExternalScheme;
              });
             // add authentication with fakebook api and google 
 

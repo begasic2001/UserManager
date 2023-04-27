@@ -1,4 +1,5 @@
 using Autofac.Core;
+using Microsoft.AspNetCore.Authentication.Facebook;
 using Microsoft.Extensions.Configuration;
 using UserManager.Application.Models;
 using UserManager.Infactructure;
@@ -28,7 +29,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 //app.UseStaticFiles();
 app.UseCookiePolicy();
-//app.UseRouting();   
+//app.UseRouting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

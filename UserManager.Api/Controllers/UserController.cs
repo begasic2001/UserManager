@@ -1,28 +1,33 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.Google;
+﻿
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
+
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using UserManager.Application.Interfaces;
 using UserManager.Application.Models;
 using UserManager.Domain.Entities;
+using Microsoft.AspNetCore.Authentication.Facebook;
+using RestSharp;
+using System.Text.Json;
+using System;
+using System.Net;
+
 
 namespace UserManager.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UserController : Controller
+    public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
         private readonly IEmailServices _emailService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> signInManager;
-        public UserController(IUserService userService , IEmailServices emailService, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public UserController(IUserService userService, IEmailServices emailService, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
         {
             _userService = userService;
             _emailService = emailService;
@@ -39,19 +44,20 @@ namespace UserManager.Api.Controllers
                     Email = model.Email,
                     UserName = model.Email
                 };
-                var result = await _userService.RegisterAsync(user,model);
+                var result = await _userService.RegisterAsync(user, model);
                 if (result.Succeeded)
                 {
-                   
+
                     var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                     var confirmEmailUrl = Url.Action(nameof(ConfirmMail), "User", new { token, user.Email }, Request.Scheme);
                     var message = new Message(
                         new string[] { user.Email! }, "Confirm email link", confirmEmailUrl);
                     _emailService.SendEmail(message);
                     return StatusCode(StatusCodes.Status200OK,
-                        new { 
-                            Status = "Success", 
-                            Message =$"User has been created & email sent to {user.Email} successfully"
+                        new
+                        {
+                            Status = "Success",
+                            Message = $"User has been created & email sent to {user.Email} successfully"
                         });
                 }
                 else
@@ -63,7 +69,7 @@ namespace UserManager.Api.Controllers
                             Message = "This role doesn't exists"
                         });
                 }
-            
+
             }
             catch (Exception ex)
             {
@@ -77,9 +83,9 @@ namespace UserManager.Api.Controllers
         {
             try
             {
-                
+
                 var result = await _userService.SignInAsync(model);
-            
+
                 return Ok(result);
             }
             catch (Exception ex)
@@ -91,22 +97,22 @@ namespace UserManager.Api.Controllers
         //[HttpPost("SignIn-2FA")]
         //public async Task<IActionResult> SignIn_2FA()
         //{
-            //if (user.TwoFactorEnabled)
-            //{
-            //    return StatusCode(StatusCodes.Status200OK,
-            //    new
-            //    {
-            //        Status = "Success",
-            //        Message = $"We have sent an OTP {user.Email} "
-            //    });
-            //}
+        //if (user.TwoFactorEnabled)
+        //{
+        //    return StatusCode(StatusCodes.Status200OK,
+        //    new
+        //    {
+        //        Status = "Success",
+        //        Message = $"We have sent an OTP {user.Email} "
+        //    });
+        //}
         //}
         [HttpPost("Refresh-Token")]
         public async Task<IActionResult> RefreshToken(ModelToken model)
         {
             try
             {
-                if(model.RefreshToken is null)
+                if (model.RefreshToken is null)
                 {
                     return BadRequest($"Invalid client request {model.RefreshToken}");
                 }
@@ -128,12 +134,13 @@ namespace UserManager.Api.Controllers
                 var result = await _userService.CreateRole(name);
                 return Ok(result);
             }
-            catch(Exception ex) {
-            
+            catch (Exception ex)
+            {
+
                 return BadRequest(ex.Message);
-            
+
             }
-          
+
         }
         [HttpGet("Role")]
         public async Task<IActionResult> Roles()
@@ -167,7 +174,7 @@ namespace UserManager.Api.Controllers
             }
         }
         [HttpPost("AddUserToRole")]
-        public async Task<IActionResult> AddUserToRole(string email , string roleName)
+        public async Task<IActionResult> AddUserToRole(string email, string roleName)
         {
             try
             {
@@ -195,7 +202,7 @@ namespace UserManager.Api.Controllers
 
                 return BadRequest(ex.Message);
             }
-            
+
         }
         [HttpGet("GetUserRole")]
         public async Task<IActionResult> GetUserRole(string email)
@@ -219,7 +226,7 @@ namespace UserManager.Api.Controllers
 
                 return BadRequest(ex.Message);
             }
-          
+
         }
 
         [HttpPost("RemoveUserRole")]
@@ -278,28 +285,28 @@ namespace UserManager.Api.Controllers
                 var result = await _userService.Logout(accessToken, model.RefreshToken);
                 return Ok(result);
             }
-            
+
         }
 
         [HttpGet("ConfirmMail")]
-        public  async Task<IActionResult> ConfirmMail(string email, string token)
+        public async Task<IActionResult> ConfirmMail(string email, string token)
         {
             try
             {
                 var result = await _userService.ConfirmEmail(email, token);
-                if(result.Succeeded)
+                if (result.Succeeded)
                 {
-                    
-                    return Ok(result);  
+
+                    return Ok(result);
                 }
                 return BadRequest(result);
             }
             catch (Exception ex)
             {
                 return BadRequest($"{ex.Message}");
-                
+
             }
-            
+
         }
 
         [HttpPost("forgot-password")]
@@ -332,10 +339,11 @@ namespace UserManager.Api.Controllers
 
 
         [HttpGet("reset-password")]
-        
-        public async Task<IActionResult> GetResetPassword(string token,string email)
+
+        public async Task<IActionResult> GetResetPassword(string token, string email)
         {
-            var model = new ResetPassword {
+            var model = new ResetPassword
+            {
                 Token = token,
                 Email = email
             };
@@ -379,7 +387,7 @@ namespace UserManager.Api.Controllers
         public async Task<IActionResult> GetUserByEmail(string email)
         {
             try
-            {  
+            {
                 var result = await _userService.FindUserByEmailAsync(email);
                 return Ok(result);
             }
@@ -410,37 +418,33 @@ namespace UserManager.Api.Controllers
         [HttpGet("LoginWithGoogle")]
         public IActionResult GoogleLogin()
         {
-            string redirectUrl = Url.Action("GoogleResponse", "User");
+            string redirectUrl = Url.Action("ExternalLoginCallback", "User");
             var properties = signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
             return new ChallengeResult("Google", properties);
         }
 
         [AllowAnonymous]
-        [HttpGet("GoogleResponse")]
-        public async Task<IActionResult> GoogleResponse()
+        [HttpGet("ExternalLoginCallback")]
+        public async Task<IActionResult> ExternalLoginCallback()
         {
             ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
-            
-
-
+            await Console.Out.WriteLineAsync("info::::::::::::"+info);
             if (info == null)
             {
-                //return RedirectToAction(nameof(SignIn));
                 return BadRequest("No Response");
             }
 
-            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
-            
-            string[] userInfo = { 
-                info.Principal.FindFirst(ClaimTypes.Name)!.Value, 
+            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false,true);
+
+            string[] userInfo = {
+                info.Principal.FindFirst(ClaimTypes.Name)!.Value,
                 info.Principal.FindFirst(ClaimTypes.Email)!.Value,
-               
+
             };
             if (result.Succeeded)
             {
                 return Ok(userInfo);
             }
-                //return View("GoogleResponse",userInfo);
             else
             {
                 var user = new ApplicationUser
@@ -448,11 +452,8 @@ namespace UserManager.Api.Controllers
                     Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
                     UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
                 };
-                if (info.Principal.HasClaim(c => c.Type == "picture"))
-                {
-                    await _userManager.AddClaimAsync(user, info.Principal.FindFirst("picture"));
-                }
-                
+
+
                 IdentityResult identResult = await _userManager.CreateAsync(user);
                 if (identResult.Succeeded)
                 {
@@ -460,15 +461,33 @@ namespace UserManager.Api.Controllers
                     if (identResult.Succeeded)
                     {
                         await signInManager.SignInAsync(user, false);
-                        //Console.WriteLine("Picture:::::::::::::" + info.Principal.FindFirst("picture")!.Value);
-                        //return View(userInfo);
-                        return Ok(userInfo);
+                        return Ok(result);
                     }
                 }
                 return NoContent();
             }
         }
+        // facebook
+        [AllowAnonymous]
+        [HttpGet("LoginWithFacebook")]
+        public IActionResult FaceBookLogin()
+        {
+            var properties = signInManager.ConfigureExternalAuthenticationProperties("Facebook", Url.Action("ExternalLoginCallback", "User"));
+            return Challenge(properties, "Facebook");
+        }
+
+        //[AllowAnonymous]
+        //[HttpGet("ExternalLoginCallback")]
+        //public async Task<IActionResult> ExternalLoginCallback()
+        //{
+           
+        //    ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+            
+        //}
+       
+    
 
 
     }
 }
+
