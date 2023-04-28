@@ -15,13 +15,16 @@ using RestSharp;
 using System.Text.Json;
 using System;
 using System.Net;
-
+using Microsoft.AspNetCore.WebUtilities;
+using System.Text;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace UserManager.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UserController : ControllerBase
+    public class UserController : Controller
     {
         private readonly IUserService _userService;
         private readonly IEmailServices _emailService;
@@ -418,76 +421,76 @@ namespace UserManager.Api.Controllers
         [HttpGet("LoginWithGoogle")]
         public IActionResult GoogleLogin()
         {
-            string redirectUrl = Url.Action("ExternalLoginCallback", "User");
+            string redirectUrl = Url.Action("GoogleResponse", "User");
             var properties = signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
             return new ChallengeResult("Google", properties);
         }
 
         [AllowAnonymous]
-        [HttpGet("ExternalLoginCallback")]
-        public async Task<IActionResult> ExternalLoginCallback()
+        [HttpGet("GoogleResponse")]
+        public async Task<IActionResult> GoogleResponse()
         {
             ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
-            await Console.Out.WriteLineAsync("info::::::::::::"+info);
             if (info == null)
             {
                 return BadRequest("No Response");
             }
+            return Ok(info);
+            //var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,isPersistent: false);
 
-            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false,true);
+            //string[] userInfo = {
+            //    info.Principal.FindFirst(ClaimTypes.Name)!.Value,
+            //    info.Principal.FindFirst(ClaimTypes.Email)!.Value,
 
-            string[] userInfo = {
-                info.Principal.FindFirst(ClaimTypes.Name)!.Value,
-                info.Principal.FindFirst(ClaimTypes.Email)!.Value,
+            //};
+            //if (result.Succeeded)
+            //{
+            //    return Ok(userInfo);
+            //}
+            //else
+            //{
+            //    var user = new ApplicationUser
+            //    {
+            //        Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
+            //        UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
+            //    };
+            //    // find user
+            //    var hasUser = await _userManager.FindByEmailAsync(user.Email);
+             
 
-            };
-            if (result.Succeeded)
-            {
-                return Ok(userInfo);
-            }
-            else
-            {
-                var user = new ApplicationUser
-                {
-                    Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
-                    UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
-                };
 
-
-                IdentityResult identResult = await _userManager.CreateAsync(user);
-                if (identResult.Succeeded)
-                {
-                    identResult = await _userManager.AddLoginAsync(user, info);
-                    if (identResult.Succeeded)
-                    {
-                        await signInManager.SignInAsync(user, false);
-                        return Ok(result);
-                    }
-                }
-                return NoContent();
-            }
+            //    IdentityResult identResult = await _userManager.CreateAsync(user);
+            //    if (identResult.Succeeded)
+            //    {
+            //        identResult = await _userManager.AddLoginAsync(user, info);
+            //        if (identResult.Succeeded)
+            //        {
+            //            await signInManager.SignInAsync(user, isPersistent:false);
+            //            return Ok(result);
+            //        }
+            //    }
+            //    return NoContent();
+            //}
         }
         // facebook
         [AllowAnonymous]
         [HttpGet("LoginWithFacebook")]
         public IActionResult FaceBookLogin()
         {
-            var properties = signInManager.ConfigureExternalAuthenticationProperties("Facebook", Url.Action("ExternalLoginCallback", "User"));
-            return Challenge(properties, "Facebook");
+            var properties = signInManager.ConfigureExternalAuthenticationProperties("Facebook", Url.Action("FacbookResponse", "User"));
+            return new ChallengeResult("Facebook", properties);
         }
 
-        //[AllowAnonymous]
-        //[HttpGet("ExternalLoginCallback")]
-        //public async Task<IActionResult> ExternalLoginCallback()
-        //{
-           
-        //    ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
-            
-        //}
-       
-    
-
-
+        [HttpGet("FacbookResponse")]
+        public async Task<IActionResult> FacbookResponse()
+        {
+            ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+            var access_token = info.AuthenticationTokens.First().Value;
+            var client = new RestClient("https://graph.facebook.com/v16.0");
+            var request = new RestRequest($"me?access_token={access_token}&fields=picture");
+            var response = await client.GetAsync(request);
+            return Ok(response);
+        }
     }
 }
 
