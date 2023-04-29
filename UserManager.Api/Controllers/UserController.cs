@@ -431,46 +431,62 @@ namespace UserManager.Api.Controllers
         public async Task<IActionResult> GoogleResponse()
         {
             ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+
             if (info == null)
             {
                 return BadRequest("No Response");
             }
-            return Ok(info);
-            //var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,isPersistent: false);
-
-            //string[] userInfo = {
-            //    info.Principal.FindFirst(ClaimTypes.Name)!.Value,
-            //    info.Principal.FindFirst(ClaimTypes.Email)!.Value,
-
-            //};
-            //if (result.Succeeded)
-            //{
-            //    return Ok(userInfo);
-            //}
-            //else
-            //{
-            //    var user = new ApplicationUser
-            //    {
-            //        Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
-            //        UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
-            //    };
-            //    // find user
-            //    var hasUser = await _userManager.FindByEmailAsync(user.Email);
-             
-
-
-            //    IdentityResult identResult = await _userManager.CreateAsync(user);
-            //    if (identResult.Succeeded)
-            //    {
-            //        identResult = await _userManager.AddLoginAsync(user, info);
-            //        if (identResult.Succeeded)
-            //        {
-            //            await signInManager.SignInAsync(user, isPersistent:false);
-            //            return Ok(result);
-            //        }
-            //    }
-            //    return NoContent();
-            //}
+            var user = new ApplicationUser
+            {
+                Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
+                UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
+            };
+            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
+                isPersistent: false, bypassTwoFactor: true);
+            if(result.Succeeded)
+            {
+                return Ok(user);
+            }
+            else
+            {
+                // find user
+                var hasUser = await _userManager.FindByEmailAsync(user.Email);
+                if (hasUser == null)
+                {
+                    IdentityResult identResult = await _userManager.CreateAsync(user);
+                    if (identResult.Succeeded)
+                    {
+                        identResult = await _userManager.AddLoginAsync(user, info);
+                        if (identResult.Succeeded)
+                        {
+                            await signInManager.SignInAsync(user, isPersistent: false);
+                            return Ok(user);
+                        }
+                    }
+                }
+                else
+                {
+                    //var userLoginProvider = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+                    //if (userLoginProvider == null)
+                    //{
+                  
+                            IdentityResult identityRes = await _userManager.AddLoginAsync(hasUser, info);
+                            await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
+                        isPersistent: false, bypassTwoFactor: true);
+                    if (identityRes.Succeeded)
+                            {
+                                await signInManager.SignInAsync(user, isPersistent: false);
+                                return Ok(user);
+                            }
+                    //}
+                    else
+                    {
+                        await signInManager.SignInAsync(user, isPersistent: false);
+                        return Ok(user);
+                    }
+                }
+            }
+            return NoContent();
         }
         // facebook
         [AllowAnonymous]
