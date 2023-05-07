@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using Microsoft.EntityFrameworkCore;
 
 namespace UserManager.Api.Controllers
 {
@@ -421,91 +422,115 @@ namespace UserManager.Api.Controllers
         [HttpGet("LoginWithGoogle")]
         public IActionResult GoogleLogin()
         {
-            string redirectUrl = Url.Action("GoogleResponse", "User");
+            string redirectUrl = Url.Action("ExternalLogin", "User");
             var properties = signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
             return new ChallengeResult("Google", properties);
         }
 
-        [AllowAnonymous]
-        [HttpGet("GoogleResponse")]
-        public async Task<IActionResult> GoogleResponse()
-        {
-            ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
-
-            if (info == null)
-            {
-                return BadRequest("No Response");
-            }
-            var user = new ApplicationUser
-            {
-                Email = info.Principal.FindFirst(ClaimTypes.Email).Value,
-                UserName = info.Principal.FindFirst(ClaimTypes.Email).Value
-            };
-            var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
-                isPersistent: false, bypassTwoFactor: true);
-            if(result.Succeeded)
-            {
-                return Ok(user);
-            }
-            else
-            {
-                // find user
-                var hasUser = await _userManager.FindByEmailAsync(user.Email);
-                if (hasUser == null)
-                {
-                    IdentityResult identResult = await _userManager.CreateAsync(user);
-                    if (identResult.Succeeded)
-                    {
-                        identResult = await _userManager.AddLoginAsync(user, info);
-                        if (identResult.Succeeded)
-                        {
-                            await signInManager.SignInAsync(user, isPersistent: false);
-                            return Ok(user);
-                        }
-                    }
-                }
-                else
-                {
-                    //var userLoginProvider = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
-                    //if (userLoginProvider == null)
-                    //{
-                  
-                            IdentityResult identityRes = await _userManager.AddLoginAsync(hasUser, info);
-                            await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
-                        isPersistent: false, bypassTwoFactor: true);
-                    if (identityRes.Succeeded)
-                            {
-                                await signInManager.SignInAsync(user, isPersistent: false);
-                                return Ok(user);
-                            }
-                    //}
-                    else
-                    {
-                        await signInManager.SignInAsync(user, isPersistent: false);
-                        return Ok(user);
-                    }
-                }
-            }
-            return NoContent();
-        }
         // facebook
         [AllowAnonymous]
         [HttpGet("LoginWithFacebook")]
         public IActionResult FaceBookLogin()
         {
-            var properties = signInManager.ConfigureExternalAuthenticationProperties("Facebook", Url.Action("FacbookResponse", "User"));
+            var properties = signInManager.ConfigureExternalAuthenticationProperties("Facebook", Url.Action("ExternalLogin", "User"));
             return new ChallengeResult("Facebook", properties);
         }
+        [AllowAnonymous]
+        [HttpGet("ExternalLogin")]
+        public async Task<IActionResult> ExternalLogin()
+        {
+            ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
+            var avatar = info.Principal.Identities;
+            //avatar.FirstOrDefault(
+            //    x => x.Type.Equals("urn:google:picture", StringComparison.OrdinalIgnoreCase));
+            return Ok(avatar);
+            //if (info == null)
+            //{
+            //    return BadRequest("No Response");
+            //}
+            //var user = new ApplicationUser
+            //{
+            //    Email = info.Principal.FindFirst(ClaimTypes.Email)!.Value,
+            //    UserName = info.Principal.FindFirst(ClaimTypes.Email)!.Value
+            //};
+            //var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
+            //    isPersistent: false, bypassTwoFactor: true);
+            //if (result.Succeeded)
+            //{
+            //    return Ok(user);
+            //}
+            //else
+            //{
+            //    // find user
+            //    var hasUser = await _userManager.FindByEmailAsync(user.Email);
+            //    if (hasUser == null)
+            //    {
+            //        IdentityResult identResult = await _userManager.CreateAsync(user);
+            //        if (identResult.Succeeded)
+            //        {
+            //            identResult = await _userManager.AddLoginAsync(user, info);
+            //            if (identResult.Succeeded)
+            //            {
+            //                await signInManager.SignInAsync(user, isPersistent: false);
+            //                return Ok(user);
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        var userLoginProvider = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+            //        if (userLoginProvider == null)
+            //        {
+
+            //            IdentityResult identityRes = await _userManager.AddLoginAsync(hasUser, info);
+            //            await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey,
+            //            isPersistent: false, bypassTwoFactor: true);
+            //            if (identityRes.Succeeded)
+            //            {
+            //                await signInManager.SignInAsync(user, isPersistent: false);
+            //                return Ok(user);
+            //            }
+            //        }
+            //        else
+            //        {
+            //            await signInManager.SignInAsync(user, isPersistent: false);
+            //            return Ok(user);
+            //        }
+            //    }
+            //}
+            //return NoContent();
+        }
+        // facebook
+       
 
         [HttpGet("FacbookResponse")]
         public async Task<IActionResult> FacbookResponse()
         {
             ExternalLoginInfo info = await signInManager.GetExternalLoginInfoAsync();
-            var access_token = info.AuthenticationTokens.First().Value;
-            var client = new RestClient("https://graph.facebook.com/v16.0");
-            var request = new RestRequest($"me?access_token={access_token}&fields=picture");
-            var response = await client.GetAsync(request);
-            return Ok(response);
+            return Ok(info);
+            //var access_token = info.AuthenticationTokens.First().Value;
+            //var client = new RestClient("https://graph.facebook.com/v16.0");
+            //var request = new RestRequest($"me?access_token={access_token}&fields=picture");
+            //var response = await client.GetAsync(request);
+            //var data = JsonSerializer.Deserialize<Dictionary<string, string>>(response.Content!);
+            //var facebookId = long.Parse(data!["id"]);
+            //var name = data["name"];
+            //var account = _context.Accounts.SingleOrDefault(x => x.FacebookId == facebookId);
+
+            //// create new account if first time logging in
+            //if (account == null)
+            //{
+            //    account = new Account
+            //    {
+            //        FacebookId = facebookId,
+            //        Name = name,
+            //        ExtraInfo = $"This is some extra info about {name} that is saved in the API"
+            //    };
+            //    _context.Accounts.Add(account);
+            //    await _context.SaveChangesAsync();
+            //}
+
+            //return Ok(response);
         }
     }
 }
